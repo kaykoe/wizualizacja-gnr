@@ -1,3 +1,4 @@
+import io
 import pandas as pd
 import numpy as np
 import FreeSimpleGUI as sg
@@ -42,28 +43,54 @@ def get_load_df(
 
 def get_GNR(load_df: pd.DataFrame) -> pd.DataFrame:
     # TODO: implement this
-    return None
+    pass
 
 
 def get_plot(load_df: pd.DataFrame) -> plt.Figure:
-    # TODO: implement this
-    return None
+    # TODO: add GNR to the plot
+    plot = load_df.plot(
+        x="minute",
+        y="load",
+        title="Obciążenie systemu",
+        figsize=tuple((x / 100 for x in size)),
+    ).get_figure()
+    plot.set_dpi(100)
+    plot.set_layout_engine("constrained")
+    return plot
+
+
+def update_image():
+    load_df = get_load_df(turnaround_time_file, intensity_time_file)
+    plot = get_plot(load_df)
+    img = io.BytesIO()
+    plot.savefig(img, format="png")
+    window["image"].update(data=img.getvalue())
 
 
 turnaround_time_file = "czas.txt"
 intensity_time_file = "int.txt"
-
-load_df = get_load_df(turnaround_time_file, intensity_time_file)
+size = (1280, 720)
+sg.theme("LightGrey")
 
 # TODO: add descriptions for different ways of calculating GNR to the help menu
-menu_layout = [["Plik", ["Otwórz", "Zamknij"]], ["Pomoc", ["Pomoc", "O programie"]]]
-layout = [[sg.Menu(menu_layout)], [sg.Canvas()]]
-# TODO: implement plot rendering inside the canvas
+menu_layout = [["Plik", ["Otwórz", "Zamknij"]], ["Pomoc", ["O programie"]]]
+layout = [
+    [sg.Menu(menu_layout)],
+    [sg.VPush()],
+    [sg.Push(), sg.Image(key="image", size=size), sg.Push()],
+    [sg.VPush()],
+]
 
-plot = get_plot(load_df)
+window = sg.Window(
+    "Wizualizacja GNR",
+    layout,
+    resizable=True,
+    finalize=True,
+    element_justification="center",
+)
 
-window = sg.Window("Wizualizacja GNR", layout)
-
+update_image()
+window.refresh()
 while True:
     event, values = window.read()
 
@@ -73,31 +100,41 @@ while True:
     if event == "Otwórz":
         popup_layout = [
             [
-                sg.Text("Plik z czasami obsługi:", size=(8, 1)),
+                sg.Text("Plik z czasami obsługi:"),
+                sg.Input(),
+                sg.FileBrowse(file_types=(("Text Files", "*.txt"),)),
+            ],
+            [
+                sg.Text("Plik z intesywnością zgłoszeń"),
                 sg.Input(),
                 sg.FileBrowse(),
             ],
             [
-                sg.Text("Plik z intesywnością zgłoszeń", size=(8, 1)),
-                sg.Input(),
-                sg.FileBrowse(),
+                sg.Push(),
+                sg.Submit("Zatwierdź", size=(10, 1)),
+                sg.Cancel("Anuluj", size=(10, 1)),
+                sg.Push(),
             ],
-            [sg.Submit(), sg.Cancel()],
         ]
 
-        popup_window = sg.Window("Wybierz dane wejściowe", popup_layout)
+        popup_window = sg.Window(
+            "Wybierz dane wejściowe",
+            popup_layout,
+            size=(610, 120),
+            element_justification="right",
+        )
 
-        _, values = popup_window.read()
-        turnaround_time_file = values[0]
-        intensity_time_file = values[1]
+        event, values = popup_window.read()
+        if event == "Submit":
+            # TODO: add validation
+            turnaround_time_file = values[0]
+            intensity_time_file = values[1]
         popup_window.close()
-        load_df = get_load_df(turnaround_time_file, intensity_time_file)
-        # rerender here
+        update_image()
         continue
 
     if event == "Zamknij":
         turnaround_time_file = "czas.txt"
         intensity_time_file = "int.txt"
-        load_df = get_load_df(turnaround_time_file, intensity_time_file)
-        # rerender here
+        update_image()
         continue
