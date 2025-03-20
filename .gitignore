@@ -177,3 +177,5 @@ cython_debug/
 # IntelliJ files
 .idea/
 *.iml
+
+.qodo

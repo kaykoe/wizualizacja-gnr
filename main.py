@@ -6,6 +6,10 @@ import FreeSimpleGUI as sg
 from matplotlib import pyplot as plt
 import typing
 
+# TODO: add zero's where the minutes are missing
+# TODO: add the possibility to load in a full directory of intensity files
+# TODO: add the additional days generation from the data provided
+# TODO: add 1(minimum) to 3(absolute maximum) ways to calculate the GNR
 
 bundle_path: str = path.abspath(path.dirname(__file__))
 default_turnaround_time_file = path.join(bundle_path, "czas.txt")
@@ -145,8 +149,6 @@ def get_load_df(
         global intensity_time_file
         intensity_time_file = default_intensity_time_file
         req_df = get_request_intensity_df(intensity_time_file)
-    # TODO: find out if this is what we are supposed to do with this data and if there are some other things that I am supposed to do with the data before using it
-    # TODO: find out if I am supposed to add data where the minutes are missing
     return req_df.assign(load=req_df["intensity"] * avg_ta)
 
 
