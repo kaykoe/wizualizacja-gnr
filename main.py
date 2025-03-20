@@ -6,6 +6,10 @@ import FreeSimpleGUI as sg
 from matplotlib import pyplot as plt
 import typing
 
+# TODO: add zero's where the minutes are missing
+# TODO: add the possibility to load in a full directory of intensity files
+# TODO: add the additional days generation from the data provided
+# TODO: add 1(minimum) to 3(absolute maximum) ways to calculate the GNR
 
 bundle_path: str = path.abspath(path.dirname(__file__))
 default_turnaround_time_file = path.join(bundle_path, "czas.txt")
