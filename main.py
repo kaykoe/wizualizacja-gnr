@@ -38,6 +38,7 @@ def setup():
         [sg.VPush()],
     ]
     # TODO: add more tabs
+    # TODO: description tab
     layout = [
         [sg.Menu(menu_layout)],
         [
@@ -173,6 +174,7 @@ def get_plot(load_df: pd.DataFrame) -> plt.Figure:
 
 def update_image(key: str):
     load_df = get_load_df(turnaround_time_file, intensity_time_file)
+    load_df.to_csv("load_df.csv")
     plot = get_plot(load_df)
     img = io.BytesIO()
     plot.savefig(img, format="png")
