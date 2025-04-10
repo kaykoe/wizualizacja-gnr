@@ -6,8 +6,8 @@ import FreeSimpleGUI as sg
 from matplotlib import pyplot as plt
 import typing
 
-# TODO: add zero's where the minutes are missing
-# TODO: add the possibility to load in a full directory of intensity files
+# TODO: add zero's where the minutes are missing -> karol
+# TODO: add the possibility to load in a full directory of intensity files -> karol
 # TODO: add the additional days generation from the data provided
 # TODO: add 1(minimum) to 3(absolute maximum) ways to calculate the GNR
 
@@ -124,13 +124,18 @@ def get_load_df(
         try:
             df = pd.read_table(
                 file_path,
+                index_col=0,
                 decimal=",",
                 header=None,
                 sep="\s+",
-                names=["minute", "intensity"],
-                dtype={"minute": np.int32, "intensity": np.float32},
+                names=["intensity"],
+                dtype={"intensity": np.float32},
             )
-            return df
+            idx = pd.Index((i + 1 for i in range(int(df.index.max()))))
+            return df.reindex(
+                index=idx,
+                fill_value=0,
+            )
         except Exception:
             sg.popup_error(
                 "Błąd podczas przetwarzania pliku z intensywnością zgłoszeń, niepoprawny format"
@@ -159,8 +164,8 @@ def get_GNR(load_df: pd.DataFrame) -> pd.DataFrame:
 
 
 def get_plot(load_df: pd.DataFrame) -> plt.Figure:
-    # TODO: add GNR to the plot
-    # TODO: make the plot look better etc.
+    # TODO: add GNR to the plot -> karol
+    # TODO: make the plot look better etc. -> karol
     plot = load_df.plot(
         x="minute",
         y="load",
@@ -174,7 +179,6 @@ def get_plot(load_df: pd.DataFrame) -> plt.Figure:
 
 def update_image(key: str):
     load_df = get_load_df(turnaround_time_file, intensity_time_file)
-    load_df.to_csv("load_df.csv")
     plot = get_plot(load_df)
     img = io.BytesIO()
     plot.savefig(img, format="png")
