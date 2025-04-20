@@ -1,4 +1,6 @@
 import io
+import os
+from enum import StrEnum
 from os import path
 import pandas as pd
 import numpy as np
@@ -6,23 +8,105 @@ import FreeSimpleGUI as sg
 from matplotlib import pyplot as plt
 import typing
 
-# TODO: add zero's where the minutes are missing -> karol
 # TODO: add the possibility to load in a full directory of intensity files -> karol
 # TODO: add the additional days generation from the data provided
 # TODO: add 1(minimum) to 3(absolute maximum) ways to calculate the GNR
 
-bundle_path: str = path.abspath(path.dirname(__file__))
+bundle_path = path.abspath(path.dirname(__file__))
 default_turnaround_time_file = path.join(bundle_path, "czas.txt")
+int_file = path.join(bundle_path, "int.txt")
+def_int_dir = path.join(bundle_path, "int_files")
+
 turnaround_time_file = default_turnaround_time_file
-default_intensity_time_file = path.join(bundle_path, "int.txt")
-intensity_time_file = default_intensity_time_file
+int_dir = def_int_dir
 
 size = (1280, 720)
-current_tab: str = "wizualizacja"
+
+class Tab(StrEnum):
+    WIZUALIZACJA = "wizualizacja"
+
+tab_img_dict: typing.Dict[Tab, str] = {tab: tab.value + "_image" for tab in Tab}
+current_tab: Tab = Tab.WIZUALIZACJA
 
 window: sg.Window
-tab_img_dict: typing.Dict[str, str]
 
+def get_intensity_df(file_path: str) -> pd.DataFrame | None:
+    """
+    This function takes in a path to a file containing request intensities and returns a DataFrame with the minute and intensity columns.
+    The file must be formated in a way where the minute and intensity are provided in two columns separated by whitespace.
+    """
+    try:
+        df = pd.read_table(
+            file_path,
+            index_col=0,
+            decimal=",",
+            header=None,
+            sep="\\s+",
+            names=["intensity"],
+            dtype={"intensity": np.float32},
+        )
+        idx = pd.Index((i + 1 for i in range(int(df.index.max()))))
+        df = df.reindex(
+            index=idx,
+            fill_value=0,
+        )
+        df.insert(0, "minute", idx)
+        return df
+    except Exception:
+        sg.popup_error(
+            "Błąd podczas przetwarzania pliku z intensywnością zgłoszeń, niepoprawny format"
+        )
+        return None
+
+def get_load_df(
+        turnaround_time_file_path: str, intensity_time_file_path: str
+) -> pd.DataFrame:
+    """
+    This function takes in paths to two files, one containing turnaround times and the other containing request intensities.
+    It returns a DataFrame with the minute, intensity and load columns.
+    The load column is calculated as the product of the intensity and the average turnaround time.
+    """
+
+    def calculate_average_turnaround_time(file_path: str) -> float | None:
+        """
+        This function takes in a path to a file containing turnaround times and returns the average turnaround time.
+        The file must be formated in a way where the times are provided one per line and nothing else.
+        """
+        try:
+            df = pd.read_table(file_path, header=None, index_col=False)
+            return df.mean()[0]
+        except Exception:
+            sg.popup_error(
+                "Błąd podczas przetwarzania pliku z czasami obsługi, niepoprawny format"
+            )
+            return None
+
+    avg_ta = calculate_average_turnaround_time(turnaround_time_file_path)
+    # Go back to the default file if there was an error
+    if avg_ta is None:
+        global turnaround_time_file
+        turnaround_time_file = default_turnaround_time_file
+        avg_ta = calculate_average_turnaround_time(turnaround_time_file)
+
+    # Go back to the default file if there was an error
+    int_df = get_intensity_df(intensity_time_file_path)
+    if int_df is None:
+        global intensity_time_file
+        intensity_time_file = int_file
+        int_df = get_intensity_df(intensity_time_file)
+    return int_df.assign(load=int_df["intensity"] * avg_ta)
+
+def preprocess_default_data():
+    int_df = get_intensity_df(int_file)
+    dfs : list[pd.DataFrame] = gen_dfs(int_df, 7)
+    os.mkdir(def_int_dir)
+    for i, df in enumerate(dfs):
+        df.to_csv(
+            path.join(def_int_dir, f"int_{i}.txt"),
+            sep="\t",
+            index=False,
+            header=False,
+        )
 
 def setup():
     sg.theme("LightGrey")
@@ -34,24 +118,23 @@ def setup():
 
     tab_1_layout = [
         [sg.VPush()],
-        [sg.Push(), sg.Image(key="wizualizacja_image", size=size), sg.Push()],
+        [sg.Push(), sg.Image(key=tab_img_dict.get(Tab.WIZUALIZACJA), size=size), sg.Push()],
         [sg.VPush()],
     ]
     # TODO: add more tabs
     # TODO: description tab
+    # noinspection PyTypeChecker
     layout = [
         [sg.Menu(menu_layout)],
         [
             sg.TabGroup(
-                [[sg.Tab("Wizualizacja", tab_1_layout, key="wizualizacja")]],
+                [[sg.Tab(Tab.WIZUALIZACJA.value, tab_1_layout, key=Tab.WIZUALIZACJA)]],
                 expand_x=True,
                 expand_y=True,
                 enable_events=True,
             )
         ],
     ]
-    global tab_img_dict
-    tab_img_dict = {"wizualizacja": "wizualizacja_image"}
 
     global window
     window = sg.Window(
@@ -93,69 +176,6 @@ def get_filenames_from_popup(vals: typing.Dict[str, str]) -> (
     return vals["time_file"], vals["int_file"]
 
 
-def get_load_df(
-    turnaround_time_file_path: str, intensity_time_file_path: str
-) -> pd.DataFrame:
-    """
-    This function takes in paths to two files, one containing turnaround times and the other containing request intensities.
-    It returns a DataFrame with the minute, intensity and load columns.
-    The load column is calculated as the product of the intensity and the average turnaround time.
-    """
-
-    def calculate_average_turnaround_time(file_path: str) -> float | None:
-        """
-        This function takes in a path to a file containing turnaround times and returns the average turnaround time.
-        The file must be formated in a way where the times are provided one per line and nothing else.
-        """
-        try:
-            df = pd.read_table(file_path, header=None, index_col=False)
-            return df.mean()[0]
-        except Exception:
-            sg.popup_error(
-                "Błąd podczas przetwarzania pliku z czasami obsługi, niepoprawny format"
-            )
-            return None
-
-    def get_request_intensity_df(file_path: str) -> pd.DataFrame | None:
-        """
-        This function takes in a path to a file containing request intensities and returns a DataFrame with the minute and intensity columns.
-        The file must be formated in a way where the minute and intensity are provided in two columns separated by whitespace.
-        """
-        try:
-            df = pd.read_table(
-                file_path,
-                index_col=0,
-                decimal=",",
-                header=None,
-                sep="\s+",
-                names=["intensity"],
-                dtype={"intensity": np.float32},
-            )
-            idx = pd.Index((i + 1 for i in range(int(df.index.max()))))
-            return df.reindex(
-                index=idx,
-                fill_value=0,
-            )
-        except Exception:
-            sg.popup_error(
-                "Błąd podczas przetwarzania pliku z intensywnością zgłoszeń, niepoprawny format"
-            )
-            return None
-
-    avg_ta = calculate_average_turnaround_time(turnaround_time_file_path)
-    # Go back to the default file if there was an error
-    if avg_ta is None:
-        global turnaround_time_file
-        turnaround_time_file = default_turnaround_time_file
-        avg_ta = calculate_average_turnaround_time(turnaround_time_file)
-
-    # Go back to the default file if there was an error
-    req_df = get_request_intensity_df(intensity_time_file_path)
-    if req_df is None:
-        global intensity_time_file
-        intensity_time_file = default_intensity_time_file
-        req_df = get_request_intensity_df(intensity_time_file)
-    return req_df.assign(load=req_df["intensity"] * avg_ta)
 
 
 def get_GNR(load_df: pd.DataFrame) -> pd.DataFrame:
@@ -178,7 +198,7 @@ def get_plot(load_df: pd.DataFrame) -> plt.Figure:
 
 
 def update_image(key: str):
-    load_df = get_load_df(turnaround_time_file, intensity_time_file)
+    load_df = get_load_df(turnaround_time_file, int_file)
     plot = get_plot(load_df)
     img = io.BytesIO()
     plot.savefig(img, format="png")
@@ -233,7 +253,7 @@ while True:
 
     if event == "Zamknij":
         turnaround_time_file = default_turnaround_time_file
-        intensity_time_file = default_intensity_time_file
+        intensity_time_file = int_file
 
         if tab_img_dict.get(current_tab) is not None:
             update_image(tab_img_dict[current_tab])
