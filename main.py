@@ -9,8 +9,8 @@ import FreeSimpleGUI as sg
 from matplotlib import pyplot as plt
 import typing
 
-# TODO: add the additional days generation from the data provided
-# TODO: add 1(minimum) to 3(absolute maximum) ways to calculate the GNR
+#TODO fix ADPQH tab functionality
+#TODO add help section
 
 bundle_path = path.abspath(path.dirname(__file__))
 default_turnaround_time_file = path.join(bundle_path, "czas.txt")
@@ -23,10 +23,11 @@ int_dir = def_int_dir
 size = (1280, 720)
 
 class Tab(StrEnum):
-    WIZUALIZACJA = "wizualizacja"
+    TCBH = "TCBH"
+    ADPQH = "ADPQH"
 
 tab_img_dict: typing.Dict[Tab, str] = {tab: tab.value + "_image" for tab in Tab}
-current_tab: Tab = Tab.WIZUALIZACJA
+current_tab: Tab = Tab.TCBH
 
 window: sg.Window
 
@@ -112,12 +113,39 @@ def get_load_dfs() -> list[pd.DataFrame]:
     return [int_df.assign(load=int_df["intensity"] * avg_ta) for int_df in int_dfs]
 
 def gen_dfs(df: pd.DataFrame, days: int) -> list[pd.DataFrame]:
-    pass
+    """
+    Generate a list of DataFrames for a number of days by circularly shifting the intensity series.
+    Each day's DataFrame will have 'minute' and 'intensity' columns, with the intensity shifted
+    forward by a random amount between 0% and 10% of the total time span (values wrap around).
+    """
+    dfs: list[pd.DataFrame] = []
+    total_minutes = len(df)
+
+    # maximum shift in rows (10% of the series length)
+    max_shift = int(total_minutes * 0.1)
+
+    for _ in range(days):
+        # pick a random shift between 0 and max_shift (inclusive)
+        shift_amount = np.random.randint(0, max_shift + 1)
+
+        # circularly shift the intensity array
+        arr = df['intensity'].to_numpy()
+        shifted = np.roll(arr, shift_amount)
+
+        # build new DataFrame
+        new_df = pd.DataFrame({
+            'minute': df['minute'],
+            'intensity': shifted
+        })
+
+        dfs.append(new_df)
+
+    return dfs
+
 
 def preprocess_default_data():
     int_df = get_intensity_df(int_file)
-    # dfs = gen_dfs(int_df, 7)
-    dfs = [int_df] # Placeholder
+    dfs = gen_dfs(int_df, 7)
     if not path.exists(def_int_dir):
         os.mkdir(def_int_dir)
     for i, df in enumerate(dfs):
@@ -139,17 +167,22 @@ def setup():
 
     tab_1_layout = [
         [sg.VPush()],
-        [sg.Push(), sg.Image(key=tab_img_dict.get(Tab.WIZUALIZACJA), size=size), sg.Push()],
+        [sg.Push(), sg.Image(key=tab_img_dict.get(Tab.TCBH), size=size), sg.Push()],
         [sg.VPush()],
     ]
-    # TODO: add more tabs
+    tab_2_layout = [
+        [sg.VPush()],
+        [sg.Push(), sg.Image(key=tab_img_dict.get(Tab.ADPQH), size=size), sg.Push()],
+        [sg.VPush()],
+    ]
     # TODO: description tab
     # noinspection PyTypeChecker
     layout = [
         [sg.Menu(menu_layout)],
         [
             sg.TabGroup(
-                [[sg.Tab(Tab.WIZUALIZACJA.value, tab_1_layout, key=Tab.WIZUALIZACJA)]],
+                [[sg.Tab(Tab.TCBH.value, tab_1_layout, key=Tab.TCBH),
+                  sg.Tab(Tab.ADPQH.value, tab_2_layout, key=Tab.ADPQH)]],
                 expand_x=True,
                 expand_y=True,
                 enable_events=True,
@@ -208,13 +241,47 @@ def get_filenames_from_popup(vals: typing.Dict[str, str]) -> (
 
 
 def get_GNR(load_dfs: list[pd.DataFrame]) -> typing.Tuple[int, int]:
-    # TODO: implement this, if multiple ways of calculating, just get it from the tab dict
-    pass
+    """
+    Calculate the GNR period using either Total Call Busy Hour (TCBH) or Average Daily Peak Quarter Hour (ADPQH).
+    Returns a tuple of (start_minute, end_minute).
+    """
+    # Combine all day data
+    combined_df = pd.concat(load_dfs)
 
+    if current_tab == "TCBH":
+        # Average across days per minute
+        load_df = combined_df.groupby('minute', as_index=False)['load'].mean()
+        load_df = load_df.sort_values('minute').reset_index(drop=True)
+        window_size = 60
+        if len(load_df) < window_size:
+            return (int(load_df['minute'].iloc[0]), int(load_df['minute'].iloc[-1]))
+        rolling_sum = load_df['load'].rolling(window=window_size).sum()
+        max_idx = rolling_sum.idxmax()
+        end_minute = int(load_df.loc[max_idx, 'minute'])
+        start_minute = int(end_minute - window_size + 1)
+        return (start_minute, end_minute)
+
+    elif current_tab == "ADPQH":
+        peak_quarter_starts = []
+        for df in load_dfs:
+            df = df.sort_values('minute').reset_index(drop=True)
+            quarter_hour_sum = df['load'].rolling(window=15).sum()
+            peak_idx = quarter_hour_sum.idxmax()
+            if pd.notna(peak_idx):
+                end = int(df.loc[peak_idx, 'minute'])
+                start = int(end - 14)
+                peak_quarter_starts.append((start, end))
+
+        if not peak_quarter_starts:
+            return (0, 0)
+
+        # Average start and end minute of peak quarters
+        avg_start = int(np.mean([start for start, _ in peak_quarter_starts]))
+        avg_end = int(np.mean([end for _, end in peak_quarter_starts]))
+        return (avg_start, avg_end)
 
 def get_plot(load_dfs: list[pd.DataFrame]) -> plt.Figure:
-    # GNR = get_GNR(load_dfs)
-    GNR = (600, 660)  # Placeholder
+    GNR = get_GNR(load_dfs)
 
     load_df = pd.concat(load_dfs).groupby("minute", as_index=False).mean()
     gnr_load = load_df[(load_df["minute"] >= GNR[0]) & (load_df["minute"] <= GNR[1])][
