@@ -27,7 +27,7 @@ class Tab(StrEnum):
     ADPQH = "ADPQH"
 
 tab_img_dict: typing.Dict[Tab, str] = {tab: tab.value + "_image" for tab in Tab}
-current_tab: Tab = Tab.TCBH
+current_tab: Tab = Tab.ADPQH
 
 window: sg.Window
 
@@ -123,7 +123,7 @@ def gen_dfs(df: pd.DataFrame, days: int) -> list[pd.DataFrame]:
 
     # maximum shift in rows (10% of the series length)
     max_shift = int(total_minutes * 0.1)
-
+    dfs.append(df)
     for _ in range(days):
         # pick a random shift between 0 and max_shift (inclusive)
         shift_amount = np.random.randint(0, max_shift + 1)
@@ -262,23 +262,24 @@ def get_GNR(load_dfs: list[pd.DataFrame]) -> typing.Tuple[int, int]:
         return (start_minute, end_minute)
 
     elif current_tab == "ADPQH":
-        peak_quarter_starts = []
+        hour_bins = []
         for df in load_dfs:
             df = df.sort_values('minute').reset_index(drop=True)
             quarter_hour_sum = df['load'].rolling(window=15).sum()
             peak_idx = quarter_hour_sum.idxmax()
             if pd.notna(peak_idx):
-                end = int(df.loc[peak_idx, 'minute'])
-                start = int(end - 14)
-                peak_quarter_starts.append((start, end))
+                quarter_end = int(df.loc[peak_idx, 'minute'])
+                quarter_start = quarter_end - 14
+                hour_start = (quarter_start // 60) * 60
+                hour_bins.append(hour_start)
 
-        if not peak_quarter_starts:
+        if not hour_bins:
             return (0, 0)
 
-        # Average start and end minute of peak quarters
-        avg_start = int(np.mean([start for start, _ in peak_quarter_starts]))
-        avg_end = int(np.mean([end for _, end in peak_quarter_starts]))
-        return (avg_start, avg_end)
+        # Most frequent hour block among days
+        most_common_hour = max(set(hour_bins), key=hour_bins.count)
+        return (most_common_hour, most_common_hour + 59)
+
 
 def get_plot(load_dfs: list[pd.DataFrame]) -> plt.Figure:
     GNR = get_GNR(load_dfs)
