@@ -9,7 +9,6 @@ import FreeSimpleGUI as sg
 from matplotlib import pyplot as plt
 import typing
 
-#TODO fix ADPQH tab functionality
 #TODO add help section
 
 bundle_path = path.abspath(path.dirname(__file__))
@@ -357,6 +356,50 @@ def file_popup():
         keep_on_top=True,
     ).read(close=True)
 
+def show_help_menu():
+    help_options = ["TCBH", "ADPH", "FDMP", "FDMH"]
+    layout = [[sg.Text("Wybierz opcję pomocy:")],
+              [sg.Listbox(help_options, size=(40, 4), key="HELP_OPTION")],
+              [sg.Button("OK"), sg.Button("Anuluj")]]
+
+    event, values = sg.Window("Pomoc", layout, modal=True).read(close=True)
+
+    if event == "OK" and values.get("HELP_OPTION"):
+        selection = values["HELP_OPTION"][0]
+        if selection == "TCBH":
+            sg.popup("TCBH (Total Call Busy Hour)", (
+                "Opis: Klasyczny algorytm stosowany w telekomunikacji.\n\n"
+                "Cel: Wyznaczenie godziny, w której całkowita liczba zajętych kanałów (czyli prowadzonych połączeń) była największa.\n\n"
+                "Metoda: Dla każdego przedziału godzinowego sumuje się liczbę aktywnych połączeń (czyli połączeń w toku).\n"
+                "Godzina z najwyższą wartością to GNR.\n\n"
+                "Zastosowanie: Planowanie przepustowości sieci, analiza obciążenia."
+            ))
+        elif selection == "ADPH":
+            sg.popup("ADPH (Average Daily Peak Hour)", (
+                "a) ADPQH (Average Daily Peak Quarter Hour)\n\n"
+                "Opis: Oblicza GNR na podstawie średniego dobowego maksymalnego ruchu w kwadransie.\n\n"
+                "Metoda: Dla każdego dnia wybierany jest 15-minutowy przedział o najwyższym obciążeniu.\n"
+                "Następnie oblicza się średnią (czasową lub wartościową) tych kwartalnych szczytów z kilku dni.\n\n"
+                "Zastosowanie: Szczegółowa analiza obciążenia w krótkich okresach (np. VoIP, systemy alarmowe).\n\n"
+                "b) ADPFH (Average Daily Peak Full Hour)\n\n"
+                "Opis: Jak ADPQH, ale bierze pod uwagę pełne godziny zamiast kwadransów.\n\n"
+                "Metoda: Dla każdego dnia wybierana jest jedna godzina z największym ruchem.\n"
+                "Potem wylicza się średni szczyt z tych godzin (np. wartość lub czas).\n\n"
+                "Zastosowanie: Mniej szczegółowa niż ADPQH, ale bardziej odporna na chwilowe skoki ruchu."
+            ))
+        elif selection == "FDMP":
+            sg.popup("FDMP (Fixed Daily Maximum Peak)", (
+                "Opis: Algorytm określa stałą godzinę szczytową, która najczęściej (najwięcej dni) przypadała jako GNR.\n\n"
+                "Metoda: Analizuje się dane z wielu dni i identyfikuje konkretną godzinę,\n"
+                "która najczęściej była godziną najwyższego ruchu.\n\n"
+                "Zastosowanie: Przydatny w planowaniu zasobów, np. przydziału operatorów w call center czy pasma w sieci."
+            ))
+        elif selection == "FDMH":
+            sg.popup("FDMH (Fixed Daily Maximum Hour)", (
+                "Opis: Bardzo podobny do FDMP, czasem stosowany zamiennie, ale może oznaczać\n\n"
+                "godzinę z absolutnie największym ruchem w danym okresie (np. tygodniu, miesiącu), niezależnie od dnia.\n\n"
+                "Zastosowanie: Wykorzystywany w raportowaniu i długoterminowym planowaniu sieci."))
+
 preprocess_default_data()
 setup()
 update_image()
@@ -395,6 +438,9 @@ while True:
         current_tab = Tab(selected_tab)
         update_image()
 
+    if event == "Pomoc" or event == "O programie":
+        show_help_menu()
+        continue
 
 # cleanup
 shutil.rmtree(def_int_dir)
