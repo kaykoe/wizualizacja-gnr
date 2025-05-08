@@ -9,8 +9,6 @@ import FreeSimpleGUI as sg
 from matplotlib import pyplot as plt
 import typing
 
-#TODO add help section
-
 bundle_path = path.abspath(path.dirname(__file__))
 default_turnaround_time_file = path.join(bundle_path, "czas.txt")
 int_file = path.join(bundle_path, "int.txt")
@@ -174,7 +172,6 @@ def setup():
         [sg.Push(), sg.Image(key=tab_img_dict.get(Tab.ADPQH), size=size), sg.Push()],
         [sg.VPush()],
     ]
-    # TODO: description tab
     # noinspection PyTypeChecker
     layout = [
         [sg.Menu(menu_layout)],
