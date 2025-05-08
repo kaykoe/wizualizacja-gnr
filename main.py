@@ -9,9 +9,6 @@ import FreeSimpleGUI as sg
 from matplotlib import pyplot as plt
 import typing
 
-# TODO: add the additional days generation from the data provided
-# TODO: add 1(minimum) to 3(absolute maximum) ways to calculate the GNR
-
 bundle_path = path.abspath(path.dirname(__file__))
 default_turnaround_time_file = path.join(bundle_path, "czas.txt")
 int_file = path.join(bundle_path, "int.txt")
@@ -23,10 +20,11 @@ int_dir = def_int_dir
 size = (1280, 720)
 
 class Tab(StrEnum):
-    WIZUALIZACJA = "wizualizacja"
+    TCBH = "TCBH"
+    ADPQH = "ADPQH"
 
 tab_img_dict: typing.Dict[Tab, str] = {tab: tab.value + "_image" for tab in Tab}
-current_tab: Tab = Tab.WIZUALIZACJA
+current_tab: Tab = Tab.TCBH
 
 window: sg.Window
 
@@ -112,12 +110,39 @@ def get_load_dfs() -> list[pd.DataFrame]:
     return [int_df.assign(load=int_df["intensity"] * avg_ta) for int_df in int_dfs]
 
 def gen_dfs(df: pd.DataFrame, days: int) -> list[pd.DataFrame]:
-    pass
+    """
+    Generate a list of DataFrames for a number of days by circularly shifting the intensity series.
+    Each day's DataFrame will have 'minute' and 'intensity' columns, with the intensity shifted
+    forward by a random amount between 0% and 10% of the total time span (values wrap around).
+    """
+    dfs: list[pd.DataFrame] = []
+    total_minutes = len(df)
+
+    # maximum shift in rows (10% of the series length)
+    max_shift = int(total_minutes * 0.1)
+    dfs.append(df)
+    for _ in range(days):
+        # pick a random shift between 0 and max_shift (inclusive)
+        shift_amount = np.random.randint(0, max_shift + 1)
+
+        # circularly shift the intensity array
+        arr = df['intensity'].to_numpy()
+        shifted = np.roll(arr, shift_amount)
+
+        # build new DataFrame
+        new_df = pd.DataFrame({
+            'minute': df['minute'],
+            'intensity': shifted
+        })
+
+        dfs.append(new_df)
+
+    return dfs
+
 
 def preprocess_default_data():
     int_df = get_intensity_df(int_file)
-    # dfs = gen_dfs(int_df, 7)
-    dfs = [int_df] # Placeholder
+    dfs = gen_dfs(int_df, 7)
     if not path.exists(def_int_dir):
         os.mkdir(def_int_dir)
     for i, df in enumerate(dfs):
@@ -139,17 +164,22 @@ def setup():
 
     tab_1_layout = [
         [sg.VPush()],
-        [sg.Push(), sg.Image(key=tab_img_dict.get(Tab.WIZUALIZACJA), size=size), sg.Push()],
+        [sg.Push(), sg.Image(key=tab_img_dict.get(Tab.TCBH), size=size), sg.Push()],
         [sg.VPush()],
     ]
-    # TODO: add more tabs
-    # TODO: description tab
+    tab_2_layout = [
+        [sg.VPush()],
+        [sg.Push(), sg.Image(key=tab_img_dict.get(Tab.ADPQH), size=size), sg.Push()],
+        [sg.VPush()],
+    ]
     # noinspection PyTypeChecker
     layout = [
         [sg.Menu(menu_layout)],
         [
             sg.TabGroup(
-                [[sg.Tab(Tab.WIZUALIZACJA.value, tab_1_layout, key=Tab.WIZUALIZACJA)]],
+                [[sg.Tab(Tab.TCBH.value, tab_1_layout, key=Tab.TCBH),
+                  sg.Tab(Tab.ADPQH.value, tab_2_layout, key=Tab.ADPQH)]],
+                key="TAB_GROUP",
                 expand_x=True,
                 expand_y=True,
                 enable_events=True,
@@ -208,13 +238,48 @@ def get_filenames_from_popup(vals: typing.Dict[str, str]) -> (
 
 
 def get_GNR(load_dfs: list[pd.DataFrame]) -> typing.Tuple[int, int]:
-    # TODO: implement this, if multiple ways of calculating, just get it from the tab dict
-    pass
+    """
+    Calculate the GNR period using either Total Call Busy Hour (TCBH) or Average Daily Peak Quarter Hour (ADPQH).
+    Returns a tuple of (start_minute, end_minute).
+    """
+    # Combine all day data
+    combined_df = pd.concat(load_dfs)
+
+    if current_tab == Tab.TCBH:
+        # Average across days per minute
+        load_df = combined_df.groupby('minute', as_index=False)['load'].mean()
+        load_df = load_df.sort_values('minute').reset_index(drop=True)
+        window_size = 60
+        if len(load_df) < window_size:
+            return (int(load_df['minute'].iloc[0]), int(load_df['minute'].iloc[-1]))
+        rolling_sum = load_df['load'].rolling(window=window_size).sum()
+        max_idx = rolling_sum.idxmax()
+        end_minute = int(load_df.loc[max_idx, 'minute'])
+        start_minute = int(end_minute - window_size + 1)
+        return (start_minute, end_minute)
+
+    elif current_tab == Tab.ADPQH:
+        hour_bins = []
+        for df in load_dfs:
+            df = df.sort_values('minute').reset_index(drop=True)
+            quarter_hour_sum = df['load'].rolling(window=15).sum()
+            peak_idx = quarter_hour_sum.idxmax()
+            if pd.notna(peak_idx):
+                quarter_end = int(df.loc[peak_idx, 'minute'])
+                quarter_start = quarter_end - 14
+                hour_start = (quarter_start // 60) * 60
+                hour_bins.append(hour_start)
+
+        if not hour_bins:
+            return (0, 0)
+
+        # Most frequent hour block among days
+        most_common_hour = max(set(hour_bins), key=hour_bins.count)
+        return (most_common_hour, most_common_hour + 59)
 
 
 def get_plot(load_dfs: list[pd.DataFrame]) -> plt.Figure:
-    # GNR = get_GNR(load_dfs)
-    GNR = (600, 660)  # Placeholder
+    GNR = get_GNR(load_dfs)
 
     load_df = pd.concat(load_dfs).groupby("minute", as_index=False).mean()
     gnr_load = load_df[(load_df["minute"] >= GNR[0]) & (load_df["minute"] <= GNR[1])][
@@ -288,6 +353,50 @@ def file_popup():
         keep_on_top=True,
     ).read(close=True)
 
+def show_help_menu():
+    help_options = ["TCBH", "ADPH", "FDMP", "FDMH"]
+    layout = [[sg.Text("Wbierz alogrytm, którego opis chcesz przeczytać:")],
+              [sg.Listbox(help_options, size=(40, 4), key="HELP_OPTION")],
+              [sg.Button("OK"), sg.Button("Anuluj")]]
+
+    event, values = sg.Window("Pomoc", layout, modal=True).read(close=True)
+
+    if event == "OK" and values.get("HELP_OPTION"):
+        selection = values["HELP_OPTION"][0]
+        if selection == "TCBH":
+            sg.popup("TCBH (Total Call Busy Hour)", (
+                "Opis: Klasyczny algorytm stosowany w telekomunikacji.\n\n"
+                "Cel: Wyznaczenie godziny, w której całkowita liczba zajętych kanałów (czyli prowadzonych połączeń) była największa.\n\n"
+                "Metoda: Dla każdego przedziału godzinowego sumuje się liczbę aktywnych połączeń (czyli połączeń w toku).\n"
+                "Godzina z najwyższą wartością to GNR.\n\n"
+                "Zastosowanie: Planowanie przepustowości sieci, analiza obciążenia."
+            ))
+        elif selection == "ADPH":
+            sg.popup("ADPH (Average Daily Peak Hour)", (
+                "a) ADPQH (Average Daily Peak Quarter Hour)\n\n"
+                "Opis: Oblicza GNR na podstawie średniego dobowego maksymalnego ruchu w kwadransie.\n\n"
+                "Metoda: Dla każdego dnia wybierany jest 15-minutowy przedział o najwyższym obciążeniu.\n"
+                "Następnie oblicza się średnią (czasową lub wartościową) tych kwartalnych szczytów z kilku dni.\n\n"
+                "Zastosowanie: Szczegółowa analiza obciążenia w krótkich okresach (np. VoIP, systemy alarmowe).\n\n"
+                "b) ADPFH (Average Daily Peak Full Hour)\n\n"
+                "Opis: Jak ADPQH, ale bierze pod uwagę pełne godziny zamiast kwadransów.\n\n"
+                "Metoda: Dla każdego dnia wybierana jest jedna godzina z największym ruchem.\n"
+                "Potem wylicza się średni szczyt z tych godzin (np. wartość lub czas).\n\n"
+                "Zastosowanie: Mniej szczegółowa niż ADPQH, ale bardziej odporna na chwilowe skoki ruchu."
+            ))
+        elif selection == "FDMP":
+            sg.popup("FDMP (Fixed Daily Maximum Peak)", (
+                "Opis: Algorytm określa stałą godzinę szczytową, która najczęściej (najwięcej dni) przypadała jako GNR.\n\n"
+                "Metoda: Analizuje się dane z wielu dni i identyfikuje konkretną godzinę,\n"
+                "która najczęściej była godziną najwyższego ruchu.\n\n"
+                "Zastosowanie: Przydatny w planowaniu zasobów, np. przydziału operatorów w call center czy pasma w sieci."
+            ))
+        elif selection == "FDMH":
+            sg.popup("FDMH (Fixed Daily Maximum Hour)", (
+                "Opis: Bardzo podobny do FDMP, czasem stosowany zamiennie, ale może oznaczać\n\n"
+                "godzinę z absolutnie największym ruchem w danym okresie (np. tygodniu, miesiącu), niezależnie od dnia.\n\n"
+                "Zastosowanie: Wykorzystywany w raportowaniu i długoterminowym planowaniu sieci."))
+
 preprocess_default_data()
 setup()
 update_image()
@@ -321,9 +430,14 @@ while True:
             update_image()
         continue
 
-    if event in tab_img_dict:
-        current_tab = event
+    if event == "TAB_GROUP":
+        selected_tab = values["TAB_GROUP"]
+        current_tab = Tab(selected_tab)
         update_image()
+
+    if event == "Pomoc" or event == "O programie":
+        show_help_menu()
+        continue
 
 # cleanup
 shutil.rmtree(def_int_dir)
