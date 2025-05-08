@@ -355,7 +355,7 @@ def file_popup():
 
 def show_help_menu():
     help_options = ["TCBH", "ADPH", "FDMP", "FDMH"]
-    layout = [[sg.Text("Wybierz opcję pomocy:")],
+    layout = [[sg.Text("Wbierz alogrytm, którego opis chcesz przeczytać:")],
               [sg.Listbox(help_options, size=(40, 4), key="HELP_OPTION")],
               [sg.Button("OK"), sg.Button("Anuluj")]]
 
