@@ -27,7 +27,7 @@ class Tab(StrEnum):
     ADPQH = "ADPQH"
 
 tab_img_dict: typing.Dict[Tab, str] = {tab: tab.value + "_image" for tab in Tab}
-current_tab: Tab = Tab.ADPQH
+current_tab: Tab = Tab.TCBH
 
 window: sg.Window
 
@@ -183,6 +183,7 @@ def setup():
             sg.TabGroup(
                 [[sg.Tab(Tab.TCBH.value, tab_1_layout, key=Tab.TCBH),
                   sg.Tab(Tab.ADPQH.value, tab_2_layout, key=Tab.ADPQH)]],
+                key="TAB_GROUP",
                 expand_x=True,
                 expand_y=True,
                 enable_events=True,
@@ -248,7 +249,7 @@ def get_GNR(load_dfs: list[pd.DataFrame]) -> typing.Tuple[int, int]:
     # Combine all day data
     combined_df = pd.concat(load_dfs)
 
-    if current_tab == "TCBH":
+    if current_tab == Tab.TCBH:
         # Average across days per minute
         load_df = combined_df.groupby('minute', as_index=False)['load'].mean()
         load_df = load_df.sort_values('minute').reset_index(drop=True)
@@ -261,7 +262,7 @@ def get_GNR(load_dfs: list[pd.DataFrame]) -> typing.Tuple[int, int]:
         start_minute = int(end_minute - window_size + 1)
         return (start_minute, end_minute)
 
-    elif current_tab == "ADPQH":
+    elif current_tab == Tab.ADPQH:
         hour_bins = []
         for df in load_dfs:
             df = df.sort_values('minute').reset_index(drop=True)
@@ -389,9 +390,11 @@ while True:
             update_image()
         continue
 
-    if event in tab_img_dict:
-        current_tab = event
+    if event == "TAB_GROUP":
+        selected_tab = values["TAB_GROUP"]
+        current_tab = Tab(selected_tab)
         update_image()
+
 
 # cleanup
 shutil.rmtree(def_int_dir)
