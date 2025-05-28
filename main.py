@@ -21,7 +21,7 @@ size = (1280, 720)
 
 class Tab(StrEnum):
     TCBH = "TCBH"
-    ADPQH = "ADPQH"
+    FDMH = "FDMH"
 
 tab_img_dict: typing.Dict[Tab, str] = {tab: tab.value + "_image" for tab in Tab}
 current_tab: Tab = Tab.TCBH
@@ -169,7 +169,7 @@ def setup():
     ]
     tab_2_layout = [
         [sg.VPush()],
-        [sg.Push(), sg.Image(key=tab_img_dict.get(Tab.ADPQH), size=size), sg.Push()],
+        [sg.Push(), sg.Image(key=tab_img_dict.get(Tab.FDMH), size=size), sg.Push()],
         [sg.VPush()],
     ]
     # noinspection PyTypeChecker
@@ -178,7 +178,7 @@ def setup():
         [
             sg.TabGroup(
                 [[sg.Tab(Tab.TCBH.value, tab_1_layout, key=Tab.TCBH),
-                  sg.Tab(Tab.ADPQH.value, tab_2_layout, key=Tab.ADPQH)]],
+                  sg.Tab(Tab.FDMH.value, tab_2_layout, key=Tab.FDMH)]],
                 key="TAB_GROUP",
                 expand_x=True,
                 expand_y=True,
@@ -239,7 +239,7 @@ def get_filenames_from_popup(vals: typing.Dict[str, str]) -> (
 
 def get_GNR(load_dfs: list[pd.DataFrame]) -> typing.Tuple[int, int]:
     """
-    Calculate the GNR period using either Total Call Busy Hour (TCBH) or Average Daily Peak Quarter Hour (ADPQH).
+    Calculate the GNR period using either Total Call Busy Hour (TCBH) or Average Daily Peak Quarter Hour (FDMH).
     Returns a tuple of (start_minute, end_minute).
     """
     # Combine all day data
@@ -258,24 +258,14 @@ def get_GNR(load_dfs: list[pd.DataFrame]) -> typing.Tuple[int, int]:
         start_minute = int(end_minute - window_size + 1)
         return (start_minute, end_minute)
 
-    elif current_tab == Tab.ADPQH:
-        hour_bins = []
-        for df in load_dfs:
-            df = df.sort_values('minute').reset_index(drop=True)
-            quarter_hour_sum = df['load'].rolling(window=15).sum()
-            peak_idx = quarter_hour_sum.idxmax()
-            if pd.notna(peak_idx):
-                quarter_end = int(df.loc[peak_idx, 'minute'])
-                quarter_start = quarter_end - 14
-                hour_start = (quarter_start // 60) * 60
-                hour_bins.append(hour_start)
-
-        if not hour_bins:
-            return (0, 0)
-
-        # Most frequent hour block among days
-        most_common_hour = max(set(hour_bins), key=hour_bins.count)
-        return (most_common_hour, most_common_hour + 59)
+    elif current_tab == Tab.FDMH:
+        combined_df = combined_df.sort_values('minute').reset_index(drop=True)
+        combined_df['hour'] = combined_df['minute'] // 60
+        hourly_load = combined_df.groupby('hour')['load'].sum()
+        peak_hour = hourly_load.idxmax()
+        start_minute = int(peak_hour * 60)
+        end_minute = start_minute + 59
+        return (start_minute, end_minute)
 
 
 def get_plot(load_dfs: list[pd.DataFrame]) -> plt.Figure:
