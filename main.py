@@ -387,7 +387,7 @@ def show_help_menu():
                 "godzinę z absolutnie największym ruchem w danym okresie (np. tygodniu, miesiącu), niezależnie od dnia.\n\n"
                 "Zastosowanie: Wykorzystywany w raportowaniu i długoterminowym planowaniu sieci."))
 
-def show_file_format_menu():
+def show_file_format_popup():
     sg.Window("Format plików", [[sg.Text("Czas obsługi - plik zawiera, wyrażone w sekundach, czasy trwania \n"
         "połączeń zarejestrowanych w ciągu jednej doby. Na ich podstawie nie można określić\n"
         "godziny wystąpienia konkretnego połączenia, ale mogą one posłużyć do wyznaczenia\n"
@@ -443,7 +443,7 @@ while True:
         show_help_menu()
         continue
     if event == "Format plików":
-        show_file_format_menu()
+        show_file_format_popup()
         continue
 
 # cleanup
