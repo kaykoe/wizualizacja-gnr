@@ -159,7 +159,7 @@ def setup():
 
     menu_layout = [
         ["Plik", ["Otwórz", "Zamknij"]],
-        ["Pomoc", ["O programie"]],
+        ["Pomoc", ["O programie", "Format plików"]],
     ]
 
     tab_1_layout = [
@@ -387,6 +387,20 @@ def show_help_menu():
                 "godzinę z absolutnie największym ruchem w danym okresie (np. tygodniu, miesiącu), niezależnie od dnia.\n\n"
                 "Zastosowanie: Wykorzystywany w raportowaniu i długoterminowym planowaniu sieci."))
 
+def show_file_format_menu():
+    sg.Window("Format plików", [[sg.Text("Czas obsługi - plik zawiera, wyrażone w sekundach, czasy trwania \n"
+        "połączeń zarejestrowanych w ciągu jednej doby. Na ich podstawie nie można określić\n"
+        "godziny wystąpienia konkretnego połączenia, ale mogą one posłużyć do wyznaczenia\n"
+        "wartości średniej czasu trwania połączenia.\n"
+        "\n\n"
+        "Intensywność wywołań  - plik zawiera dwie kolumny danych. W pierwszej\n"
+        "kolumnie wymienione są poszczególne minuty w ciągu doby, natomiast druga kolumna\n"
+        "zawiera informację o liczności wywołań jakie zarejestrowano w danej minucie doby.\n"
+        "Dane te można traktować jako wartości chwilowe intensywności wywołań w\n"
+        "poszczególnych minutach, wyrażone jako iloraz liczby wywołań w danej minucie oraz\n"
+        "liczby wszystkich wywołań zarejestrowanych w ciągu całej doby.\n\n")], [sg.Button("Zamknij")]],
+          modal=True).read(close=True)
+
 preprocess_default_data()
 setup()
 update_image()
@@ -427,6 +441,9 @@ while True:
 
     if event == "Pomoc" or event == "O programie":
         show_help_menu()
+        continue
+    if event == "Format plików":
+        show_file_format_menu()
         continue
 
 # cleanup
