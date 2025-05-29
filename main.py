@@ -354,11 +354,10 @@ def show_help_menu():
     if event == "OK" and values.get("HELP_OPTION"):
         selection = values["HELP_OPTION"][0]
         if selection == "TCBH":
-            sg.popup("TCBH (Total Call Busy Hour)", (
+            sg.popup("TCBH (Time Consistent Busy Hour)", (
                 "Opis: Klasyczny algorytm stosowany w telekomunikacji.\n\n"
                 "Cel: Wyznaczenie godziny, w której całkowita liczba zajętych kanałów (czyli prowadzonych połączeń) była największa.\n\n"
-                "Metoda: Dla każdego przedziału godzinowego sumuje się liczbę aktywnych połączeń (czyli połączeń w toku).\n"
-                "Godzina z najwyższą wartością to GNR.\n\n"
+                "Metoda: Algorytm wylicza GNR osobno dla każdego badanego dnia. Średnia wyników jest wyniekiem działania algorytmu\n\n"
                 "Zastosowanie: Planowanie przepustowości sieci, analiza obciążenia."
             ))
         elif selection == "ADPH":
@@ -382,7 +381,7 @@ def show_help_menu():
                 "Zastosowanie: Przydatny w planowaniu zasobów, np. przydziału operatorów w call center czy pasma w sieci."
             ))
         elif selection == "FDMH":
-            sg.popup("FDMH (Fixed Daily Maximum Hour)", (
+            sg.popup("FDMH (Fixed Daily Measurement Hour)", (
                 "Opis: Bardzo podobny do FDMP, czasem stosowany zamiennie, ale może oznaczać\n\n"
                 "godzinę z absolutnie największym ruchem w danym okresie (np. tygodniu, miesiącu), niezależnie od dnia.\n\n"
                 "Zastosowanie: Wykorzystywany w raportowaniu i długoterminowym planowaniu sieci."))
